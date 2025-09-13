@@ -44,6 +44,11 @@ def get_options(symbol):
 def favicon():
     return "", 204  # returns “No Content”
 
+@app.route("/")
+def root():
+    return jsonify({"message": "Flask backend is running!"})
+
+
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
