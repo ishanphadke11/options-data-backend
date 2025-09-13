@@ -15,12 +15,12 @@ def get_options(symbol):
         min_commission = float(request.args.get("min_commission", 1.0))
         max_spread = float(request.args.get("max_spread", 0.5))
         
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period="1d")
+
+        hist = yf.download(symbol, period="1d", threads=False)
         if hist.empty:
             return jsonify({"error": "No price found for symbol"}), 404
-            
         current_price = hist["Close"].iloc[-1]
+
         
         results = get_puts_for_ticker(
             symbol=symbol,
