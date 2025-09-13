@@ -2,11 +2,15 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from options_retriever import get_puts_for_ticker
 import yfinance as yf
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-@app.route("/options/<symbol>", methods=["GET"])
+# Optional: add /api prefix
+BASE_ROUTE = "/api"
+
+@app.route(f"{BASE_ROUTE}/options/<symbol>", methods=["GET"])
 def get_options(symbol):
     try:
         upper_bound = float(request.args.get("upper_bound", 8))
@@ -39,16 +43,10 @@ def get_options(symbol):
         print("Error in backend:", e)
         return jsonify({"error": str(e)}), 400
 
-    
-@app.route("/favicon.ico")
+@app.route(f"{BASE_ROUTE}/favicon.ico")
 def favicon():
-    return "", 204  # returns “No Content”
+    return "", 204  # No Content
 
 @app.route("/")
 def root():
     return jsonify({"message": "Flask backend is running!"})
-
-
-
-if __name__ == "__main__":
-    app.run(port=5000, debug=True)
