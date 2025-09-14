@@ -75,10 +75,7 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     # --- Limit to most relevant contracts ---
     # Sort by expiration and strike to get the most liquid options
     ref_puts_df = ref_puts_df.sort_values(['expiration_date', 'strike_price'], ascending=[True, False])
-    
-    # Limit to top 10 contracts to reduce API calls
-    top_contracts = ref_puts_df.head(10)
-    print(f"DEBUG: Limited to top {len(top_contracts)} contracts for premium lookup")
+
     
     # --- Parallel API calls for snapshots ---
     def fetch_snapshot(ticker):
@@ -120,7 +117,7 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     
     # Use ThreadPoolExecutor for parallel API calls
     premiums = []
-    tickers = top_contracts['ticker'].tolist()
+    tickers = ref_puts_df['ticker'].tolist()
     
     print("DEBUG: Fetching snapshots in parallel...")
     start_time = time.time()
@@ -138,7 +135,7 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     print(f"DEBUG: {len(valid_premiums)} snapshots have valid premium data")
     
     # --- Merge and filter ---
-    full_put_df = pd.merge(top_contracts, premium_df, on="ticker", how="left")
+    full_put_df = pd.merge(ref_puts_df, premium_df, on="ticker", how="left")
     full_put_df.dropna(subset=["premium"], inplace=True)
     
     print(f"DEBUG: After merge and dropping nulls: {len(full_put_df)} contracts")
