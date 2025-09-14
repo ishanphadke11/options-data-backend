@@ -14,21 +14,20 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     
     # --- Get contract metadata with more filters upfront ---
     # Add strike price filters to the API call to reduce data
-    strike_min = current_price * (1 - upper_bound_strike / 100.0)
-    strike_max = current_price
-    
+    max_strike = current_price * (1 - upper_bound_strike / 100.0)
+
     # Calculate expiry date range
     today = datetime.now()
     target_expiry = today + timedelta(days=expiry)
     min_expiry = target_expiry - timedelta(days=15)
     max_expiry = target_expiry + timedelta(days=15)
-    
+
     ref_url = (f"https://api.polygon.io/v3/reference/options/contracts?"
-               f"underlying_ticker={symbol}&contract_type=put&"
-               f"strike_price.gte={strike_min}&strike_price.lt={strike_max}&"
-               f"expiration_date.gte={min_expiry.strftime('%Y-%m-%d')}&"
-               f"expiration_date.lte={max_expiry.strftime('%Y-%m-%d')}&"
-               f"limit=1000&apiKey={API_KEY}")
+            f"underlying_ticker={symbol}&contract_type=put&"
+            f"strike_price.lte={max_strike}&"
+            f"expiration_date.gte={min_expiry.strftime('%Y-%m-%d')}&"
+            f"expiration_date.lte={max_expiry.strftime('%Y-%m-%d')}&"
+            f"limit=1000&apiKey={API_KEY}")
     
     ref_put_list = []
     page_count = 0
@@ -62,8 +61,7 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     ref_puts_df = ref_puts_df[
         (ref_puts_df["expiration_date"] >= min_expiry) &
         (ref_puts_df["expiration_date"] <= max_expiry) &
-        (ref_puts_df["strike_price"] < current_price) &
-        (ref_puts_df["strike_price"] >= strike_min)
+        (ref_puts_df["strike_price"] < current_price)
     ]
     
     print(f"DEBUG: After additional filtering: {len(ref_puts_df)} contracts")
