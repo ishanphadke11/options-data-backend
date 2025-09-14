@@ -12,7 +12,6 @@ API_KEY = os.getenv("API_KEY")
 def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_commission, max_spread):
     print(f"DEBUG: Starting search for {symbol}, current_price: {current_price}")
     
-    # --- Get contract metadata with more filters upfront ---
     # Add strike price filters to the API call to reduce data
     max_strike = current_price * (1 - upper_bound_strike / 100.0)
     print(f"max strike price {max_strike}")
@@ -32,9 +31,9 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     
     ref_put_list = []
     page_count = 0
-    max_pages = 3  # Limit pages to avoid too many contracts
+ 
     
-    while ref_url and page_count < max_pages:
+    while ref_url and page_count:
         try:
             resp = requests.get(ref_url)
             resp.raise_for_status()
