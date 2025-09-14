@@ -66,67 +66,64 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
         print("DEBUG: No contracts after filtering!")
         return []
     
-    # Show some sample strikes for debugging
-    if len(ref_puts_df) > 0:
-        sample_strikes = ref_puts_df["strike_price"].head(5).tolist()
-        print(f"DEBUG: Sample strikes: {sample_strikes}")
-    
-    # --- Batch snapshot (all options at once) ---
-    snapshot_url = f"https://api.polygon.io/v3/snapshot/options/{symbol}?apiKey={API_KEY}"
-    try:
-        resp = requests.get(snapshot_url)
-        resp.raise_for_status()
-        snapshots = resp.json().get("results", [])
-        print(f"DEBUG: Got {len(snapshots)} snapshots from API")
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching snapshot batch: {e}")
-        return []
-    
-    # Build DataFrame of premiums
+    # --- Individual snapshot calls (instead of batch) ---
     premiums = []
-    valid_premiums = 0
+    valid_count = 0
     
-    for snap in snapshots:
-        ticker = snap.get("ticker")
-        details = snap.get("details", {})
-        day_data = snap.get("day", {})
-        
-        bid = details.get("bid")
-        ask = details.get("ask")
-        
-        # Prefer close price, then bid
-        premium_price = day_data.get("close") if "close" in day_data else bid
-        spread = ask - bid if (bid is not None and ask is not None) else None
-        
-        if premium_price is not None:
-            valid_premiums += 1
-        
-        premiums.append({
-            "ticker": ticker,
-            "premium": premium_price,
-            "bid": bid,
-            "ask": ask,
-            "spread": spread,
-        })
+    print("DEBUG: Fetching individual snapshots...")
     
-    print(f"DEBUG: {valid_premiums} snapshots have valid premium data")
+    for ticker in ref_puts_df['ticker'].unique()[:20]:  # Limit to first 20 to avoid rate limits
+        snapshot_url = f"https://api.polygon.io/v3/snapshot/options/{symbol}/{ticker}?apiKey={API_KEY}"
+        try:
+            resp = requests.get(snapshot_url)
+            resp.raise_for_status()
+            data = resp.json()
+            results = data.get('results', {})
+            
+            # Extract premium data
+            bid = results.get("bid")
+            ask = results.get("ask")
+            
+            # Use close if available, fallback to bid
+            premium_price = None
+            if "day" in results and "close" in results["day"]:
+                premium_price = results["day"]["close"]
+            elif bid is not None:
+                premium_price = bid
+            
+            # Compute spread if both bid & ask are available
+            spread = None
+            if bid is not None and ask is not None:
+                spread = ask - bid
+            
+            if premium_price is not None:
+                valid_count += 1
+                
+            premiums.append({
+                "ticker": ticker,
+                "premium": premium_price,
+                "bid": bid,
+                "ask": ask,
+                "spread": spread
+            })
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching snapshot for {ticker}: {e}")
+            # Add empty record so we don't lose the ticker
+            premiums.append({
+                "ticker": ticker,
+                "premium": None,
+                "bid": None,
+                "ask": None,
+                "spread": None
+            })
+    
+    print(f"DEBUG: {valid_count} individual snapshots have valid premium data")
     
     premium_df = pd.DataFrame(premiums)
     
     # --- Merge contract info + premium data ---
-    print(f"DEBUG: Merging {len(ref_puts_df)} contracts with {len(premium_df)} premiums")
-    
-    # Check if tickers match before merge
-    contract_tickers = set(ref_puts_df["ticker"].tolist())
-    premium_tickers = set(premium_df["ticker"].tolist())
-    matching_tickers = contract_tickers.intersection(premium_tickers)
-    print(f"DEBUG: {len(matching_tickers)} matching tickers between contracts and premiums")
-    
-    if len(matching_tickers) == 0:
-        print("DEBUG: No matching tickers! Sample contract tickers:", list(contract_tickers)[:3])
-        print("DEBUG: Sample premium tickers:", list(premium_tickers)[:3])
-    
-    full_put_df = pd.merge(ref_puts_df, premium_df, on="ticker", how="inner")
+    full_put_df = pd.merge(ref_puts_df, premium_df, on="ticker", how="left")
     print(f"DEBUG: After merge: {len(full_put_df)} contracts")
     
     full_put_df.dropna(subset=["premium"], inplace=True)
@@ -140,7 +137,6 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     ]
     
     print(f"DEBUG: After final filter (commission >= {min_commission}, spread <= {max_spread}): {len(full_put_df)} contracts")
-    print(f"DEBUG: Commission filter removed: {before_final_filter - len(full_put_df)} contracts")
     
     if len(full_put_df) > 0:
         sample_premiums = full_put_df["premium"].head(3).tolist()
