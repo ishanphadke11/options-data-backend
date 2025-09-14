@@ -23,15 +23,14 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     max_expiry = target_expiry + timedelta(days=15)
 
     ref_url = (f"https://api.polygon.io/v3/reference/options/contracts?"
-            f"underlying_ticker={symbol}&contract_type=put&"
-            f"strike_price.lte={max_strike}&"
-            f"expiration_date.gte={min_expiry.strftime('%Y-%m-%d')}&"
-            f"expiration_date.lte={max_expiry.strftime('%Y-%m-%d')}&"
-            f"limit=1000&apiKey={API_KEY}")
+               f"underlying_ticker={symbol}&contract_type=put&"
+               f"strike_price.lte={max_strike}&"
+               f"expiration_date.gte={min_expiry.strftime('%Y-%m-%d')}&"
+               f"expiration_date.lte={max_expiry.strftime('%Y-%m-%d')}&"
+               f"limit=1000&apiKey={API_KEY}")
     
     ref_put_list = []
     page_count = 0
- 
     
     while ref_url and page_count:
         try:
@@ -53,11 +52,10 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     
     print(f"DEBUG: Found {len(ref_put_list)} filtered put contracts")
     
-    # Convert to DataFrame and apply any remaining filters
+    # Convert to DataFrame and apply additional filters
     ref_puts_df = pd.DataFrame(ref_put_list)
     ref_puts_df["expiration_date"] = pd.to_datetime(ref_puts_df["expiration_date"])
     
-    # Additional filtering (API filters might not be exact)
     ref_puts_df = ref_puts_df[
         (ref_puts_df["expiration_date"] >= min_expiry) &
         (ref_puts_df["expiration_date"] <= max_expiry) &
@@ -65,16 +63,13 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     ]
     
     print(f"DEBUG: After additional filtering: {len(ref_puts_df)} contracts")
-    
     if ref_puts_df.empty:
         print("DEBUG: No contracts after filtering!")
         return []
-    
-    # --- Limit to most relevant contracts ---
-    # Sort by expiration and strike to get the most liquid options
+
+    # Sort by expiration and strike
     ref_puts_df = ref_puts_df.sort_values(['expiration_date', 'strike_price'], ascending=[True, False])
 
-    
     # --- Parallel API calls for snapshots ---
     def fetch_snapshot(ticker):
         snapshot_url = f"https://api.polygon.io/v3/snapshot/options/{symbol}/{ticker}?apiKey={API_KEY}"
@@ -82,20 +77,19 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
             resp = requests.get(snapshot_url)
             resp.raise_for_status()
             data = resp.json()
-            results = data.get('results', {})
-            
+            results = data.get("results", {})
+
             bid = results.get("bid")
             ask = results.get("ask")
-            
-            # Use close if available, fallback to bid
-            premium_price = None
-            if "day" in results and "close" in results["day"]:
-                premium_price = results["day"]["close"]
-            elif bid is not None:
-                premium_price = bid
-            
-            spread = ask - bid if (bid is not None and ask is not None) else None
-            
+
+            # Only use liquid options with both bid and ask
+            if bid is not None and ask is not None:
+                premium_price = (bid + ask) / 2  # midpoint for realistic premium
+                spread = ask - bid
+            else:
+                premium_price = None
+                spread = None
+
             return {
                 "ticker": ticker,
                 "premium": premium_price,
@@ -112,8 +106,8 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
                 "ask": None,
                 "spread": None
             }
-    
-    # Use ThreadPoolExecutor for parallel API calls
+
+    # Fetch snapshots in parallel
     premiums = []
     tickers = ref_puts_df['ticker'].tolist()
     
@@ -127,27 +121,26 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     
     end_time = time.time()
     print(f"DEBUG: Fetched {len(premiums)} snapshots in {end_time - start_time:.2f} seconds")
-    
+
+    # Only keep options with valid midpoint premium
     premium_df = pd.DataFrame(premiums)
-    valid_premiums = premium_df[premium_df['premium'].notna()]
-    print(f"DEBUG: {len(valid_premiums)} snapshots have valid premium data")
-    
-    # --- Merge and filter ---
-    full_put_df = pd.merge(ref_puts_df, premium_df, on="ticker", how="left")
+    premium_df = premium_df[premium_df["premium"].notna()]
+    print(f"DEBUG: {len(premium_df)} snapshots have valid premium data")
+
+    # Merge with reference contracts
+    full_put_df = pd.merge(ref_puts_df, premium_df, on="ticker", how="inner")
     full_put_df.dropna(subset=["premium"], inplace=True)
-    
     print(f"DEBUG: After merge and dropping nulls: {len(full_put_df)} contracts")
-    
+
     # Final filters
     full_put_df = full_put_df[
         (full_put_df["premium"] >= min_commission) &
         ((full_put_df["spread"].isna()) | (full_put_df["spread"] <= max_spread))
     ]
-    
     print(f"DEBUG: After final filter: {len(full_put_df)} contracts")
-    
+
     if len(full_put_df) > 0:
         sample_data = full_put_df[['strike_price', 'premium', 'expiration_date']].head(3)
         print(f"DEBUG: Sample results:\n{sample_data}")
-    
+
     return full_put_df.to_dict(orient="records")
