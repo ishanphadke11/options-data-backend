@@ -15,6 +15,7 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
     # --- Get contract metadata with more filters upfront ---
     # Add strike price filters to the API call to reduce data
     max_strike = current_price * (1 - upper_bound_strike / 100.0)
+    print(f"max strike price {max_strike}")
 
     # Calculate expiry date range
     today = datetime.now()
