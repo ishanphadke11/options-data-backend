@@ -47,7 +47,7 @@ def get_options(symbol):
             upper_bound_strike=upper_bound,
             expiry=expiry,
             current_price=current_price,
-            min_commision=min_commission,  # keep the typo if your function expects it
+            min_commission=min_commission,  # keep the typo if your function expects it
             max_spread=max_spread
         )
 
