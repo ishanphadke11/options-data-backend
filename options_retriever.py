@@ -76,7 +76,9 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
             resp.raise_for_status()
             data = resp.json()
             results = data.get("results", {})
-
+            last_quote = results.get("last_quote", {})
+            bid = last_quote.get("bid")
+            ask = last_quote.get("ask")
             bid = results.get("bid")
             ask = results.get("ask")
 
