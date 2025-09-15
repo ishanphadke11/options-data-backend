@@ -89,14 +89,16 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
             results = data.get("results", {})
             
             # DEBUG: print full results once per ticker
-            print(f"DEBUG: Full results for {ticker}: {results}")
 
             last_quote = results.get("last_quote", {})
+            print(f"DEBUG: Full results for {ticker}: {results}")
+
+
             bid = last_quote.get("bid")
             ask = last_quote.get("ask")
-
+            midpoint = last_quote.get("midpoint")
             # DEBUG: log bid/ask values for inspection
-            print(f"DEBUG: {ticker} -> bid={bid}, ask={ask}")
+            print(f"DEBUG: {ticker} -> bid={bid}, ask={ask}, midpoint={midpoint}")
 
             if bid is not None and ask is not None:
                 premium_price = (bid + ask) / 2  # midpoint for realistic premium
