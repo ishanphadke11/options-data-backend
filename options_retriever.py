@@ -30,9 +30,8 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
                f"limit=1000&apiKey={API_KEY}")
     
     ref_put_list = []
-    page_count = 0
     
-    while ref_url and page_count:
+    while ref_url:
         try:
             resp = requests.get(ref_url)
             resp.raise_for_status()
