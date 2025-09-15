@@ -75,12 +75,29 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
             resp = requests.get(snapshot_url)
             resp.raise_for_status()
             data = resp.json()
+
+            if "results" not in data:
+                print(f"DEBUG: No 'results' in snapshot for {ticker}, got keys: {list(data.keys())}")
+                return {
+                    "ticker": ticker,
+                    "premium": None,
+                    "bid": None,
+                    "ask": None,
+                    "spread": None
+                }
+
             results = data.get("results", {})
+            
+            # DEBUG: print full results once per ticker
+            print(f"DEBUG: Full results for {ticker}: {results}")
+
             last_quote = results.get("last_quote", {})
             bid = last_quote.get("bid")
             ask = last_quote.get("ask")
 
-            # Only use liquid options with both bid and ask
+            # DEBUG: log bid/ask values for inspection
+            print(f"DEBUG: {ticker} -> bid={bid}, ask={ask}")
+
             if bid is not None and ask is not None:
                 premium_price = (bid + ask) / 2  # midpoint for realistic premium
                 spread = ask - bid
@@ -104,6 +121,7 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
                 "ask": None,
                 "spread": None
             }
+
 
     # Fetch snapshots in parallel
     premiums = []
