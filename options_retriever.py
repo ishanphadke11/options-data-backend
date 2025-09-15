@@ -40,7 +40,6 @@ def get_puts_for_ticker(symbol, upper_bound_strike, current_price, expiry, min_c
             ref_url = data.get("next_url")
             if ref_url and "apiKey=" not in ref_url:
                 ref_url = f"{ref_url}&apiKey={API_KEY}"
-            page_count += 1
         except requests.exceptions.RequestException as e:
             print(f"Error fetching data: {e}")
             break
